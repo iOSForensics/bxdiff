@@ -33,6 +33,7 @@
 
 #include <lzma.h>
 #include <openssl/sha.h>
+#include <openssl/evp.h>
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define bswapLittleToHost32(x) x
@@ -512,42 +513,52 @@ static void __attribute__((unused)) print_hex(const void *data, size_t length) {
 #endif
 
 static int SHA1_File(FILE *f, uint8_t *dst) {
-	int ret = false;
-	if (f && dst) {
-		size_t bytes_read = 0;
-		off_t pos = ftello(f);
-		fseek(f, 0, SEEK_END);
-		size_t length = ftello(f);
-		fseek(f, 0, SEEK_SET);
-		
-		SHA_CTX ctx;
-		if (SHA1_Init(&ctx)) {
-			void *buf = malloc(512);
-			memset(buf, 0, 512);
-			size_t bytes_available;
-			
-			while (bytes_read < length) {
-				if ((bytes_available = fread(buf, 1, 512, f)) <= 0) {
-					fseeko(f, pos, SEEK_SET);
-					return false;
-				}
-				SHA1_Update(&ctx, buf, bytes_available);
-				bytes_read += bytes_available;
-			}
-			
-			SHA1_Final(dst, &ctx);
-			ret = true;
-		}
-		
-		fseeko(f, pos, SEEK_SET);
-	}
-	
-	return ret;
+    int ret = false;
+    if (f && dst) {
+        size_t bytes_read = 0;
+        off_t pos = ftello(f);
+        fseek(f, 0, SEEK_END);
+        size_t length = ftello(f);
+        fseek(f, 0, SEEK_SET);
+
+        EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+        if (!ctx) {
+            fprintf(stderr, "Failed to create EVP_MD_CTX\n");
+            return false;
+        }
+        
+        if (EVP_DigestInit_ex(ctx, EVP_sha1(), NULL)) {
+            void *buf = malloc(512);
+            memset(buf, 0, 512);
+            size_t bytes_available;
+            
+            while (bytes_read < length) {
+                if ((bytes_available = fread(buf, 1, 512, f)) <= 0) {
+                    fseeko(f, pos, SEEK_SET);
+                    free(buf);
+                    EVP_MD_CTX_free(ctx);
+                    return false;
+                }
+                EVP_DigestUpdate(ctx, buf, bytes_available);
+                bytes_read += bytes_available;
+            }
+            
+            EVP_DigestFinal_ex(ctx, dst, NULL);
+            ret = true;
+            free(buf);
+        }
+        
+        fseeko(f, pos, SEEK_SET);
+        EVP_MD_CTX_free(ctx);
+    }
+    
+    return ret;
 }
+
 
 static uint64_t parse_integer(uint64_t integer)
 {
-	uint8_t *buf = (u_char *)&integer;
+	uint8_t *buf = (unsigned char *)&integer;
 	uint64_t y;
 	
 	y = buf[7] & 0x7F;

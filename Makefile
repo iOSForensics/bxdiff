@@ -1,10 +1,26 @@
-CC = gcc
-CFLAGS = -arch x86_64 -I/usr/local/include -lcrypto -llzma
+CC = clang
+SDK = macosx
+ARCH := $(shell uname -m)
+ifeq ($(ARCH),x86_64)
+	ARCH_FLAGS = -arch x86_64
+else ifeq ($(ARCH),arm64)
+	ARCH_FLAGS = -arch arm64
+endif
 
-all:
-	$(CC) $(CFLAGS) bxpatch.c -o bxpatch
-	$(CC) $(CFLAGS) bxdiff.c lzmaio.c -o bxdiff
+INCLUDES = -I/opt/homebrew/include
+LIBS = -L/opt/homebrew/lib -llzma -lcrypto
+CFLAGS = $(ARCH_FLAGS) $(INCLUDES) -Wall
+LDFLAGS = $(LIBS)
 
-install:
-	cp bxpatch /usr/local/bin
-	cp bxdiff /usr/local/bin
+# Default target
+all: bxpatch bxdiff
+
+bxpatch:
+	xcrun -sdk $(SDK) $(CC) $(CFLAGS) bxpatch.c -o bxpatch $(LDFLAGS)
+
+bxdiff:
+	xcrun -sdk $(SDK) $(CC) $(CFLAGS) bxdiff.c lzmaio.c -o bxdiff $(LDFLAGS)
+
+clean:
+	rm -f bxpatch bxdiff
+
