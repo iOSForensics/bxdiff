@@ -1,0 +1,18 @@
+CC = gcc
+CFLAGS = -I/usr/local/include
+LDFLAGS = -L/usr/local/lib -lcrypto -llzma
+
+all: bxpatch bxdiff
+
+bxpatch:
+	$(CC) $(CFLAGS) bxpatch.c -o bxpatch $(LDFLAGS)
+
+bxdiff:
+	$(CC) $(CFLAGS) bxdiff.c lzmaio.c -o bxdiff $(LDFLAGS)
+
+install:
+	cp bxpatch /usr/local/bin
+	cp bxdiff /usr/local/bin
+
+clean:
+	rm -f bxpatch bxdiff
